@@ -1,0 +1,841 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+using NewWidget.Core.Network;
+using System.Windows.Forms;
+using NewWidget.GameData;
+using System.Runtime.InteropServices;
+
+public class Script : ScriptBase {
+	
+	enum State {
+		Idle,
+		Reading,
+		Writing,
+		BindReading
+	}
+	
+	State state = State.Idle;
+	IEnumerable<Shortcut> ShortCuts;
+	List<Macro> MacroList = new List<Macro>();
+	Form1 Form;
+
+	public override void OnStart() {
+		base.OnStart();
+		InvokeUI(CreateForm);
+		EnabledChanged(true, () => InvokeUI(() => Form.Show()));
+		EnabledChanged(false,  () => InvokeUI(() => Form.Hide()));
+		
+		ServerPacket(p => p.Id == 0xFE && p.ExtendedId == 0x70 && state == State.BindReading, UISettings);
+		ServerPacket(p => p.Id == 0x45 && state == State.Reading, ShortCutsInit);
+		ServerPacket(p => p.Id == 0xE8 && state != State.Idle, pck => Packets.Enqueue(pck));
+		ServerPacket(p => p.Id == 0x09 && state != State.Idle, CharList);
+		NewDialog(d => state != State.Idle && d.Text.ToUpper().Contains("have been disconnected from the server".ToUpper()) ||
+		          d.Text.ToUpper().Contains("Связь с сервером прервалась".ToUpper()), d => Disconected = true);
+		CreateTimer(50, () => Packets.Count > 0, ReadMacroList);
+	}
+	
+	void CreateForm()
+	{
+		Form = new Form1();
+		Form.button1.Click += StartReading;
+		Form.button2.Click += StartWriting;
+		Form.Button_clear.Click += Cleaning;
+		Form.BindSave.Click += RequestUI;
+		Form.BindLoad.Click += SendMyUI;
+		
+	}
+	
+	public override void OnStop() {
+		base.OnStop();
+		InvokeUI(() => {
+		         	Form.Close();
+		         	Form.Dispose();
+		         });
+	}
+	
+	bool SkillValidCheck;
+	void StartWriting(object sender, EventArgs e)
+	{
+		Form.TextBoxLines.Clear();
+		Form.textBox1.Lines = Form.TextBoxLines.ToArray();
+		MacroList.Clear();
+		state = State.Writing;
+		if(Me.IsInCombat) {
+			MessageBox.Show("Выйдите из комбат мода");
+			return;
+		}
+		Log("Start of writing");
+		Form.groupBox1.Enabled = false;
+		Form.groupBox2.Enabled = false;
+		try {
+			if(!System.IO.Directory.Exists(L2Helper.BaseDirectory + "ShortCutsProfiles"))
+				System.IO.Directory.CreateDirectory(L2Helper.BaseDirectory + "ShortCutsProfiles");
+			
+			if (Form.OpenProfileDialog.ShowDialog() == DialogResult.Cancel)
+				throw new Exception("Loading is canceled");
+			if(!System.IO.File.Exists(Form.OpenProfileDialog.FileName))
+				throw new Exception("Incorrect file");
+			var json = System.IO.File.ReadAllText(Form.OpenProfileDialog.FileName);
+			ShortCuts = Newtonsoft.Json.JsonConvert.DeserializeObject<IEnumerable<Shortcut>>(json);
+			Log("Profile is loaded");
+			SkillValidCheck = Form.SkillExistsCheck.Checked; //Skill Check here=====
+			Log("Logout");
+			Client.Restart();
+			ConditionWait(() => Client.State == ClientStates.CharacterSelect, 15000);
+			Wait(500);
+			Log("GameStart");
+			ConditionWait(() => Client.IsLoggedIn, 15000);
+			Log("MacroList Reading");
+			Wait(2000);
+			ConditionWait(() => Packets.Count == 0, 15000);
+			Wait(200);
+
+			ShortCutsRegister();
+		}
+		catch (Exception ex) {
+			Log(ex.Message);
+			Disconected = false;
+			MessageBox.Show("Операция прервана");
+		}
+		finally {
+			Form.groupBox1.Enabled = true;
+			Form.groupBox2.Enabled = true;
+			state = State.Idle;
+		}
+
+	}
+	
+	void StartReading(object sender, EventArgs e)
+	{
+		Form.TextBoxLines.Clear();
+		Form.textBox1.Lines = Form.TextBoxLines.ToArray();
+		MacroList.Clear();
+		state = State.Reading;
+		if(Me.IsInCombat) {
+			MessageBox.Show("Выйдите из комбат мода");
+			return;
+		}
+		Log("Start of reading");
+		Form.groupBox1.Enabled = false;
+		Form.groupBox2.Enabled = false;
+		Client.Restart();
+		try {
+			Log("Logout");
+			ConditionWait(() => Client.State == ClientStates.CharacterSelect, 15000);
+			Wait(500);
+			Log("GameStart");
+			ConditionWait(() => Client.IsLoggedIn, 15000);
+			Log("MacroList Reading");
+			Wait(2000);
+			ConditionWait(() => Packets.Count == 0, 15000);
+			Wait(200);
+			Log("Shortcuts Reading");
+			foreach(var sc in ShortCuts)
+			{
+				if(sc.Type == ShortcutType.Macro)
+					sc.BaseMacro = MacroList.FirstOrDefault(m => m.Id == sc.Id);
+				if(sc.Type == ShortcutType.Item && CommonInventory.Any(i => i.ObjectId == sc.ItemObjectId))
+					sc.Id = CommonInventory.FindByObjectId(sc.ItemObjectId).Id;
+			}
+			Log("Save Profile");
+			SaveProfile();
+		}
+		catch (Exception ex) {
+			Disconected = false;
+			Log(ex.Message);
+			MessageBox.Show("Операция прервана");
+		}
+		finally {
+			Form.groupBox1.Enabled = true;
+			Form.groupBox2.Enabled = true;
+			state = State.Idle;
+		}
+	}
+	
+	
+	void SaveProfile()
+	{
+		if(!System.IO.Directory.Exists(L2Helper.BaseDirectory + "ShortCutsProfiles"))
+			System.IO.Directory.CreateDirectory(L2Helper.BaseDirectory + "ShortCutsProfiles");
+		
+		var json = Newtonsoft.Json.JsonConvert.SerializeObject(ShortCuts, Newtonsoft.Json.Formatting.Indented);
+		Form.SaveProfileDialog.FileName = Me.Class.FullName;
+		InvokeUI(() => {
+		         	if (Form.SaveProfileDialog.ShowDialog() == DialogResult.Cancel)
+		         		throw new Exception("Saving is canceled");
+		         	System.IO.File.WriteAllText(Form.SaveProfileDialog.FileName, json);
+		         });
+		Log("Profile is saved");
+	}
+	
+	void ShortCutsRegister() {
+		Log("Start of register");
+		foreach(var shortCut in ShortCuts) {
+			var packet = new Packet(0x3D);
+			var wr = packet.GetWriter();
+			wr.WriteD((int)shortCut.Type);
+			wr.WriteD(shortCut.Slot);
+			bool skip = false;
+			switch(shortCut.Type) {
+				case ShortcutType.Item:
+					if(CommonInventory.Any(i => i.Id == shortCut.Id))
+						wr.WriteD(CommonInventory.FindById(shortCut.Id).ObjectId);
+					else {
+						L2ItemData item;
+						L2Helper.GameData.Items.TryGetValue(shortCut.Id, out item);
+						if(item != null)
+							Log(String.Format("{0} ({1}) - Предмет отсутсвует в инвентаре", shortCut.Id, item.Name));
+						else
+							Log(String.Format("{0} - Предмет отсутсвует в инвентаре", shortCut.Id));
+						skip = true;
+					}
+					break;
+					
+				case ShortcutType.Macro:
+					if(shortCut.BaseMacro == null) {
+						skip = true;
+						break;
+					}
+					var macro = MacroList.FirstOrDefault(m => EqualMacro(m.Commands, shortCut.BaseMacro.Commands));
+					if(macro != null)
+						wr.WriteD(macro.Id);
+					else {
+						if(MacroList.Count() >= 48) {
+							Log(String.Format("Макрос {0} не был создан. Превышено максимальное кол-во макросов.", shortCut.BaseMacro.Name));
+							skip = true;
+							break;
+						}
+						
+						if(SkillValidCheck && shortCut.BaseMacro.Commands.Any(c => c.Type == MacroCommandType.Skill && !Me.Skills.Any(s => s.Id == c.Id))) {
+							skip = true;
+							Log(String.Format("Макрос {0} не был создан. Макрос содержит непроученный скилл.", shortCut.BaseMacro.Name));
+							break;
+						}
+						
+						
+						var newMacro = CreateMacro(shortCut.BaseMacro);
+						try {
+							if(ConditionWait(() => MacroList.Any(m => EqualMacro(m.Commands, shortCut.BaseMacro.Commands)), 5000))
+								wr.WriteD(MacroList.FirstOrDefault(m => EqualMacro(m.Commands, shortCut.BaseMacro.Commands)).Id);
+						}
+						catch {
+							Log(String.Format("Макрос {0} не был создан", shortCut.BaseMacro.Name));
+							skip = true;
+							break;
+						}
+					}
+					break;
+					
+				case ShortcutType.Skill:
+					if(!SkillValidCheck || Me.Skills.Any(s => s.Id == shortCut.Id))
+						wr.WriteD(shortCut.Id);
+					else {
+						skip = true;
+						L2SkillData skill;
+						L2Helper.GameData.Skills.TryGetValue(shortCut.Id, out skill);
+						if(skill != null)
+							Log(String.Format("{0} ({1}) - Cкилл не проучен", shortCut.Id, skill.Name));
+						else
+							Log(String.Format("{0} - Cкилл не проучен", shortCut.Id));
+					}
+					break;
+					
+				case ShortcutType.Action:
+				case ShortcutType.Bookmark:
+				case ShortcutType.Recipe:
+				case ShortcutType.None:
+					wr.WriteD(shortCut.Id);
+					break;
+			}
+			if(skip)
+				continue;
+			
+			wr.WriteD(shortCut.Level);
+			wr.WriteD(1);
+			Client.SendToServer(packet);
+		}
+		Log("Registration is ending");
+	}
+	
+	void ShortCutsInit(Packet pck)
+	{
+		var _shortCuts = new List<Shortcut>();
+		var rdr = pck.GetReader();
+		var count = rdr.ReadD();
+		for(int i = 0; i < count; i++) {
+			var sc = new Shortcut();
+			sc.Type = (ShortcutType)rdr.ReadD();
+			sc.Slot = rdr.ReadD();
+			switch(sc.Type)
+			{
+				case ShortcutType.Item:
+					sc.ItemObjectId = rdr.ReadD();
+					sc.Level = 1;
+					rdr.Current += 20;
+					_shortCuts.Add(sc);
+					break;
+					
+				case ShortcutType.Skill:
+					sc.Id = rdr.ReadD();
+					sc.Level = rdr.ReadD();
+					_shortCuts.Add(sc);
+					rdr.Current += 5;
+					break;
+					
+				case ShortcutType.Action:
+				case ShortcutType.Macro:
+				case ShortcutType.Recipe:
+				case ShortcutType.Bookmark:
+					sc.Id = rdr.ReadD();
+					rdr.ReadD();
+					_shortCuts.Add(sc);
+					break;
+			}
+		}
+		ShortCuts = _shortCuts;
+	}
+	
+	string CreateMacro(Macro macro)
+	{
+		Console.WriteLine(MacroList.Count());
+		
+		var packet = new Packet(0xCD);
+		var wr = packet.GetWriter();
+		wr.WriteD(0);
+		
+		var name = macro.Name;
+		while(MacroList.Any(m => m.Name == name))
+			name += "_";
+		wr.WriteS(name);
+		
+		wr.WriteS(String.Empty);
+		wr.WriteS(macro.Acronym);
+		wr.WriteC(macro.Icon);
+		wr.WriteC((byte)macro.Commands.Count());
+		foreach(var cmd in macro.Commands)
+		{
+			wr.WriteC(cmd.Index);
+			wr.WriteC((byte)cmd.Type);
+			wr.WriteD(cmd.Id);
+			wr.WriteC(cmd.Shortcut);
+			wr.WriteS(cmd.Name);
+		}
+		Client.SendToServer(packet);
+		return name;
+	}
+	
+	Queue<Packet> Packets = new Queue<Packet>();
+	void ReadMacroList()
+	{
+		var pck = Packets.Dequeue();
+		if(pck == null)
+			return;
+		
+		var rdr = pck.GetReader();
+		var macro = new Macro();
+		rdr.ReadD();
+		rdr.ReadC();
+		if(rdr.ReadC() < 1)
+			return;
+		if(rdr.ReadC() < 1)
+			return;
+		macro.Id = rdr.ReadD();
+		
+		var oldMacro = MacroList.FirstOrDefault(m => m.Id == macro.Id);
+		if(oldMacro != null)
+			MacroList.Remove(oldMacro);
+		
+		macro.Name = rdr.ReadS();
+		rdr.ReadS();
+		macro.Acronym = rdr.ReadS();
+		macro.Icon = rdr.ReadC();
+		var count = rdr.ReadC();
+		if(count == 0)
+			return;
+		var commands = new List<MacroCommand>();
+		for(byte i = 0; i < count; i++)
+		{
+			var command = new MacroCommand();
+			command.Index = rdr.ReadC();
+			command.Type = (MacroCommandType)rdr.ReadC();
+			command.Id = rdr.ReadD();
+			command.Shortcut = rdr.ReadC();
+			command.Name = rdr.ReadS();
+			commands.Add(command);
+		}
+		macro.Commands = commands;
+		MacroList.Add(macro);
+	}
+	
+	void CharList(Packet pck)
+	{
+		var rdr = pck.GetReader();
+		var count = rdr.ReadD();
+		for(int i = 0; i < count; i++)
+		{
+			rdr.Current += 5;
+			var Name = rdr.ReadS();
+			rdr.ReadD();
+			rdr.ReadS();
+			rdr.Current += 0x130;
+			if(Name == Client.Name)
+			{
+				Client.GameStart(i);
+				return;
+			}
+		}
+	}
+	
+	bool Disconected = false;
+	
+	bool ConditionWait(Func<bool> func, int TimeOut)
+	{
+		var WaitingTick = Environment.TickCount + TimeOut;
+		while(Environment.TickCount < WaitingTick)
+		{
+			Wait(100);
+			if(func())
+				return true;
+			else if(Disconected)
+				throw new Exception("Disconected");
+		}
+		throw new Exception("Time Out");
+	}
+	
+	void Log(string message)
+	{
+		Form.TextBoxLines.Add(message);
+		Form.textBox1.Lines = Form.TextBoxLines.ToArray();
+		Console.WriteLine(message);
+	}
+	
+	void Cleaning(object sender, EventArgs e)
+	{
+		if(MessageBox.Show("Хотите ли вы удалить все с панели на персонаже " + Me.Name + "?", "Подтверждение", MessageBoxButtons.OKCancel) == DialogResult.Cancel)
+			return;
+		else {
+			Form.Enabled = false;
+			for(int i = 0; i < 132; i++) {
+				var pck = new Packet(0x3f);
+				pck.GetWriter().WriteD(i);
+				Client.SendToServer(pck);
+				Wait(10);
+			}
+			Form.Enabled = true;
+		}
+	}
+	
+	bool EqualMacro(IEnumerable<MacroCommand> left, IEnumerable<MacroCommand> right)
+	{
+		if(left.Count() != right.Count())
+			return false;
+		foreach(var leftCmd in left)
+		{
+			var rightCmd = right.FirstOrDefault(m => m.Index == leftCmd.Index);
+			if(rightCmd == null)
+				return false;
+			if(leftCmd.Index != rightCmd.Index || leftCmd.Id != rightCmd.Id || leftCmd.Shortcut != rightCmd.Shortcut || leftCmd.Type != rightCmd.Type || leftCmd.Name != rightCmd.Name)
+				return false;
+		}
+		return true;
+	}
+	
+	void SendMyUI(object sender, EventArgs e)
+	{ 
+		Form.TextBoxLines.Clear();
+		Form.textBox1.Lines = Form.TextBoxLines.ToArray();
+		Log("Start of writing (binds)");
+		Form.groupBox1.Enabled = false;
+		Form.groupBox2.Enabled = false;
+		try {
+			if(!System.IO.Directory.Exists(L2Helper.BaseDirectory + "ShortCutsProfiles"))
+				System.IO.Directory.CreateDirectory(L2Helper.BaseDirectory + "ShortCutsProfiles");
+			
+			if (Form.LoadBindsetDialog.ShowDialog() == DialogResult.Cancel)
+				throw new Exception("Loading is canceled");
+			if(!System.IO.File.Exists(Form.LoadBindsetDialog.FileName))
+				throw new Exception("Incorrect file");
+			buffer = System.IO.File.ReadAllBytes(Form.LoadBindsetDialog.FileName);
+			bufferSize = buffer.Length;
+			Log("Profile is loaded");
+			var packet = new Packet(0xD0, 0x22);
+			var wr = packet.GetWriter();
+			
+			wr.WriteD(bufferSize);
+			for(int i = 0; i < bufferSize; i++) {
+				wr.WriteC(buffer[i]);
+			}
+			wr.WriteD(11);
+			wr.WriteD(10);
+			Client.SendToServer(packet);
+			Log("Bind settings sent");
+		}
+		catch (Exception ex) {
+			Log(ex.Message);
+			MessageBox.Show("Операция прервана");
+		}
+		finally {
+			Form.groupBox1.Enabled = true;
+			Form.groupBox2.Enabled = true;
+		}
+	}
+	
+	
+	void RequestUI(object sender, EventArgs e)
+	{
+		Form.TextBoxLines.Clear();
+		Form.textBox1.Lines = Form.TextBoxLines.ToArray();
+		state = State.BindReading;
+		Log("Request Bind set");
+		Form.groupBox1.Enabled = false;
+		Form.groupBox2.Enabled = false;
+		buffer = new byte[]{};
+		bufferSize = 0;
+		var p = new Packet(0xD0, 0x21);
+		Client.SendToServer(p);
+		try {
+			if(ConditionWait(() => bufferSize > 0, 3000))
+				SaveBindSet();
+		}
+		catch (Exception ex) {
+			Log(ex.Message);
+			MessageBox.Show("Операция прервана");
+		}
+		finally {
+			Form.groupBox1.Enabled = true;
+			Form.groupBox2.Enabled = true;
+			state = State.Idle;
+		}
+	}
+	
+	void SaveBindSet()
+	{
+		if(!System.IO.Directory.Exists(L2Helper.BaseDirectory + "ShortCutsProfiles"))
+			System.IO.Directory.CreateDirectory(L2Helper.BaseDirectory + "ShortCutsProfiles");
+		
+
+		Form.SaveBindsetDialog.FileName = "BindSet";
+		InvokeUI(() => {
+		         	if (Form.SaveBindsetDialog.ShowDialog() == DialogResult.Cancel)
+		         		throw new Exception("Saving is canceled");
+		         	System.IO.File.WriteAllBytes(Form.SaveBindsetDialog.FileName, buffer);
+		         });
+		Log("BindSet is saved");
+	}
+
+	int bufferSize;
+	byte[] buffer;
+
+	void UISettings(Packet pck)
+	{
+		var rdr = pck.GetReader();
+		bufferSize = rdr.ReadD();
+		buffer = rdr.ReadBuffer(bufferSize);
+	}
+	
+	void InvokeUI(Action a) {
+		L2Helper.InvokeOnUIThread(a);
+	}
+}
+
+
+public class Macro
+{
+	public int Id {get;set;}
+	public string Name {get;set;}
+	public string Acronym {get;set;}
+	public byte Icon {get;set;}
+	public IEnumerable<MacroCommand> Commands {get;set;}
+}
+
+public class MacroCommand
+{
+	public byte Index {get;set;}
+	public MacroCommandType Type {get;set;}
+	public int Id {get;set;}
+	public string Name {get;set;}
+	public byte Shortcut{get;set;}
+}
+
+public class Shortcut
+{
+	public ShortcutType Type {get; set;}
+	public int Slot {get; set;}
+	public int Id {get; set;}
+	public int ItemObjectId {get; set;}
+	public int Level {get; set;}
+	public int CharacterType {get; set;}  // 1 - player, 2 - pet
+	public Macro BaseMacro {get; set;}
+}
+
+
+public enum MacroCommandType
+{
+	Skill = 1,
+	Action = 3,
+	Shortcut = 4
+}
+
+public enum ShortcutType
+{
+	None,
+	Item,
+	Skill,
+	Action,
+	Macro,
+	Recipe,
+	Bookmark
+}
+
+public partial class Form1 : Form
+{
+	public Form1()
+	{
+		InitializeComponent();
+	}
+
+	public List<string> TextBoxLines = new List<string>();
+
+	protected override void WndProc(ref Message msg)
+	{
+		const int WM_MOVING = 0x0216;
+		const int WM_SIZING = 0x0214;
+
+		if (msg.Msg == WM_MOVING || msg.Msg == WM_SIZING)
+		{
+			var r = (NativeMethods.Rect)Marshal.PtrToStructure(msg.LParam, typeof(NativeMethods.Rect));
+			NativeMethods.SetWindowPos(msg.HWnd, IntPtr.Zero, r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top, 0);
+		}
+
+		base.WndProc(ref msg);
+	}
+}
+
+partial class Form1
+{
+	/// <summary>
+	/// Обязательная переменная конструктора.
+	/// </summary>
+	private System.ComponentModel.IContainer components = null;
+
+	/// <summary>
+	/// Освободить все используемые ресурсы.
+	/// </summary>
+	/// <param name="disposing">истинно, если управляемый ресурс должен быть удален; иначе ложно.</param>
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing && (components != null))
+		{
+			components.Dispose();
+		}
+		base.Dispose(disposing);
+	}
+
+	#region Код, автоматически созданный конструктором форм Windows
+
+	/// <summary>
+	/// Требуемый метод для поддержки конструктора — не изменяйте
+	/// содержимое этого метода с помощью редактора кода.
+	/// </summary>
+	private void InitializeComponent()
+	{
+		this.button2 = new System.Windows.Forms.Button();
+		this.OpenProfileDialog = new System.Windows.Forms.OpenFileDialog();
+		this.SaveProfileDialog = new System.Windows.Forms.SaveFileDialog();
+		this.textBox1 = new System.Windows.Forms.TextBox();
+		this.BindSave = new System.Windows.Forms.Button();
+		this.BindLoad = new System.Windows.Forms.Button();
+		this.button1 = new System.Windows.Forms.Button();
+		this.groupBox1 = new System.Windows.Forms.GroupBox();
+		this.SkillExistsCheck = new System.Windows.Forms.CheckBox();
+		this.Button_clear = new System.Windows.Forms.Button();
+		this.groupBox2 = new System.Windows.Forms.GroupBox();
+		this.SaveBindsetDialog = new System.Windows.Forms.SaveFileDialog();
+		this.LoadBindsetDialog = new System.Windows.Forms.OpenFileDialog();
+		this.groupBox1.SuspendLayout();
+		this.groupBox2.SuspendLayout();
+		this.SuspendLayout();
+		// 
+		// button1
+		// 
+		this.button1.Location = new System.Drawing.Point(6, 19);
+		this.button1.Name = "button1";
+		this.button1.Size = new System.Drawing.Size(86, 30);
+		this.button1.TabIndex = 0;
+		this.button1.Text = "Save";
+		this.button1.UseVisualStyleBackColor = true;
+
+		// 
+		// button2
+		// 
+		this.button2.Location = new System.Drawing.Point(100, 18);
+		this.button2.Name = "button2";
+		this.button2.Size = new System.Drawing.Size(107, 30);
+		this.button2.TabIndex = 1;
+		this.button2.Text = "Load and register";
+		this.button2.UseVisualStyleBackColor = true;
+		// 
+		// OpenProfileDialog
+		// 
+		this.OpenProfileDialog.DefaultExt = "json";
+		this.OpenProfileDialog.Title = "Загрузка";
+		this.OpenProfileDialog.InitialDirectory = L2Helper.BaseDirectory + "ShortCutsProfiles";
+		this.OpenProfileDialog.Filter = "json files (*.json)|*.json|All files (*.*)|*.*";
+		// 
+		// SaveProfileDialog
+		// 
+		this.SaveProfileDialog.DefaultExt = "json";
+		this.SaveBindsetDialog.Title = "Сохранение";
+		this.SaveProfileDialog.InitialDirectory = L2Helper.BaseDirectory + "ShortCutsProfiles";
+		this.SaveProfileDialog.Filter = "json files (*.json)|*.json|All files (*.*)|*.*";
+		// 
+		// LoadBindsetDialog
+		// 
+		this.LoadBindsetDialog.DefaultExt = "bs";
+		this.LoadBindsetDialog.Title = "Загрузка";
+		this.LoadBindsetDialog.InitialDirectory = L2Helper.BaseDirectory + "ShortCutsProfiles";
+		this.LoadBindsetDialog.Filter = "BindSet files (*.bs)|*.bs";
+		// 
+		// SaveBindsetDialog
+		// 
+		this.SaveBindsetDialog.DefaultExt = "bs";
+		this.SaveBindsetDialog.Title = "Сохранение";
+		this.SaveBindsetDialog.InitialDirectory = L2Helper.BaseDirectory + "ShortCutsProfiles";
+		this.SaveBindsetDialog.Filter = "BindSet files (*.bs)|*.bs";
+		// 
+		// textBox1
+		// 
+		this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+		                                                              | System.Windows.Forms.AnchorStyles.Left)
+		                                                             | System.Windows.Forms.AnchorStyles.Right)));
+		this.textBox1.BackColor = System.Drawing.SystemColors.ButtonHighlight;
+		this.textBox1.Location = new System.Drawing.Point(10, 117);
+		this.textBox1.Multiline = true;
+		this.textBox1.Name = "textBox1";
+		this.textBox1.ReadOnly = true;
+		this.textBox1.Size = new System.Drawing.Size(458, 280);
+		this.textBox1.TabIndex = 2;
+		this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+		// 
+		// BindSave
+		// 
+		this.BindSave.Location = new System.Drawing.Point(17, 18);
+		this.BindSave.Name = "BindSave";
+		this.BindSave.Size = new System.Drawing.Size(92, 30);
+		this.BindSave.TabIndex = 3;
+		this.BindSave.Text = "Save";
+		this.BindSave.UseVisualStyleBackColor = true;
+		// 
+		// BindLoad
+		// 
+		this.BindLoad.Location = new System.Drawing.Point(115, 19);
+		this.BindLoad.Name = "BindLoad";
+		this.BindLoad.Size = new System.Drawing.Size(118, 29);
+		this.BindLoad.TabIndex = 4;
+		this.BindLoad.Text = "Load and register";
+		this.BindLoad.UseVisualStyleBackColor = true;
+		// 
+		// groupBox1
+		// 
+		this.groupBox1.Controls.Add(this.SkillExistsCheck);
+		this.groupBox1.Controls.Add(this.Button_clear);
+		this.groupBox1.Controls.Add(this.button2);
+		this.groupBox1.Controls.Add(this.button1);
+		this.groupBox1.Location = new System.Drawing.Point(12, 12);
+		this.groupBox1.Name = "groupBox1";
+		this.groupBox1.Size = new System.Drawing.Size(213, 99);
+		this.groupBox1.TabIndex = 5;
+		this.groupBox1.TabStop = false;
+		this.groupBox1.Text = "Shortcuts";
+		// 
+		// SkillExistsCheck
+		// 
+		this.SkillExistsCheck.AutoSize = true;
+		this.SkillExistsCheck.Location = new System.Drawing.Point(98, 63);
+		this.SkillExistsCheck.Name = "SkillExistsCheck";
+		this.SkillExistsCheck.Size = new System.Drawing.Size(107, 17);
+		this.SkillExistsCheck.TabIndex = 3;
+		this.SkillExistsCheck.Text = "Skill exists check";
+		this.SkillExistsCheck.UseVisualStyleBackColor = true;
+		// 
+		// Button_clear
+		// 
+		this.Button_clear.Location = new System.Drawing.Point(6, 55);
+		this.Button_clear.Name = "Button_clear";
+		this.Button_clear.Size = new System.Drawing.Size(86, 31);
+		this.Button_clear.TabIndex = 2;
+		this.Button_clear.Text = "Clear";
+		this.Button_clear.UseVisualStyleBackColor = true;
+		// 
+		// groupBox2
+		// 
+		this.groupBox2.Controls.Add(this.BindSave);
+		this.groupBox2.Controls.Add(this.BindLoad);
+		this.groupBox2.Location = new System.Drawing.Point(231, 12);
+		this.groupBox2.Name = "groupBox2";
+		this.groupBox2.Size = new System.Drawing.Size(239, 65);
+		this.groupBox2.TabIndex = 6;
+		this.groupBox2.TabStop = false;
+		this.groupBox2.Text = "BindKeys";
+		// 
+		// Form1
+		// 
+		this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+		this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+		this.ClientSize = new System.Drawing.Size(480, 409);
+		this.ControlBox = false;
+		this.Controls.Add(this.groupBox2);
+		this.Controls.Add(this.groupBox1);
+		this.Controls.Add(this.textBox1);
+		this.MaximizeBox = false;
+		this.MinimizeBox = false;
+		this.MinimumSize = new System.Drawing.Size(496, 447);
+		this.Name = "Form1";
+		this.ShowIcon = false;
+		this.ShowInTaskbar = false;
+		this.Text = "ShortCuts";
+		this.groupBox1.ResumeLayout(false);
+		this.groupBox1.PerformLayout();
+		this.groupBox2.ResumeLayout(false);
+		this.TopMost = true;
+		this.ResumeLayout(false);
+		this.PerformLayout();
+
+	}
+
+	#endregion
+
+	public System.Windows.Forms.Button button1;
+	public System.Windows.Forms.Button button2;
+	public System.Windows.Forms.OpenFileDialog OpenProfileDialog;
+	public System.Windows.Forms.SaveFileDialog SaveProfileDialog;
+	public System.Windows.Forms.TextBox textBox1;
+	public System.Windows.Forms.Button BindSave;
+	public System.Windows.Forms.Button BindLoad;
+	public System.Windows.Forms.GroupBox groupBox1;
+	public System.Windows.Forms.GroupBox groupBox2;
+	public System.Windows.Forms.CheckBox SkillExistsCheck;
+	public System.Windows.Forms.Button Button_clear;
+	public System.Windows.Forms.SaveFileDialog SaveBindsetDialog;
+	public System.Windows.Forms.OpenFileDialog LoadBindsetDialog;
+}
+
+
+static class NativeMethods
+{
+	[StructLayout(LayoutKind.Sequential)]
+	public struct Rect
+	{
+		public int Left;
+		public int Top;
+		public int Right;
+		public int Bottom;
+	}
+
+	[DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = false)]
+	public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInstertAfter, int x, int y, int cx, int cy, uint flags);
+}

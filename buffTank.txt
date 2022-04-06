@@ -1,0 +1,185 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+
+public class Script : ScriptBase {
+	bool FlagDuble = true;
+	string[] logins = new[] {
+		"18.art44551",
+		"18.art44552",
+		"18.art44553",
+		"18.art44554",
+		"18.art44555",
+		"18.art44556",
+		"18.art44557",
+		"18.art44558"
+	};
+	string pw = "14521452";
+
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true,bufftank);
+	}
+	
+	void bufftank(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		Console.WriteLine("buff tank load");
+		if (Me.Class.Id == 5){
+			//бафф гнома
+			
+			//цикл перебора логинов
+			for(int j = 0; j < logins.Length ;j++){
+				Console.WriteLine("J = " + j + "с таким счетчиком вошли в первый цикл фор");
+				while (Enabled && FlagDuble ){
+					switch (secondClient.State.ToString()){
+							case "Login":{
+								Console.WriteLine("Charstate is start" );
+								secondClient.Login(logins[j],pw,-1);
+								
+								while (Enabled
+								       && !(secondClient.State == ClientStates.CharacterSelect)){
+									Wait(1000);
+									Console.WriteLine(logins[j]+ " "+j + "is not redy fo second FOR ");
+								}
+								Console.WriteLine(logins[j]+ " "+(j+1) + " J+1 is redy fo 2 for ");
+								FlagDuble = false;
+								Wait(300);
+								Console.WriteLine(FlagDuble + " присвоен на " + j + " J ");
+								break;
+							}
+							case "Gaming":{
+								Console.WriteLine("i`m in gaming J+1 = "+ logins[j]+ " "+(j+1) );
+								secondClient.Restart();
+								while (!secondClient.State.ToString().Equals("CharacterSelect"))
+									Wait(1000);
+								Console.WriteLine("i`m in Select char");
+								break;
+							}
+							case "CharacterSelect":{
+								//Console.WriteLine("i`m fuckedup" );
+								secondClient.GotoLogin();
+								while (!secondClient.State.ToString().Equals("Login"))
+									
+									Wait(1000);
+								Console.WriteLine("i`m in login");
+								break;
+							}
+							default: {
+								Console.WriteLine("login is faild " + Client.State);
+								Enabled = false;
+								break;
+							}
+					}
+				}
+				Console.WriteLine("login "+ logins[j]+ " "+(j+1) +   " is on");
+				//цикл баф одного логина
+				for(int i = 0; i < 7 ;i++){
+					if (Enabled){
+						Console.WriteLine("итерация цикла бафа - " +  i );
+						Wait(3000);
+						if(!secondClient.IsLoggedIn && secondClient.State.ToString().Equals("CharacterSelect")){
+							Console.WriteLine(" login " +  i );
+							secondClient.GameStart(i);
+							Wait(3000);
+						}
+						while (!secondClient.IsLoggedIn && Enabled &&
+						       secondClient.State.ToString().Equals("CharacterSelect")){
+							Console.WriteLine("wait for login " +  i );
+							Wait(3000);
+						}
+						if (!(Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150) && Enabled){
+							Console.WriteLine(Me.Name + " " + Me.Class + " go to lab");
+							goToLab(Client);
+							
+						}
+						
+						while(!(Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150) && Enabled)
+							Wait(300);
+						
+						Console.WriteLine(Me.Name + " " + Me.Class + "  in  lab area");
+						
+						if (!(secondClient.Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150))
+						{
+							Console.WriteLine(secondClient.Name + " " + secondClient.Me.Class + " go to lab");
+							goToLab(secondClient);
+							
+						}
+						
+						while (!(secondClient.Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150) && Enabled)
+						{Wait(300);
+							Console.WriteLine("testrun");
+						}
+						Console.WriteLine(secondClient.Name + " " + secondClient.Me.Class + " in lab area");
+						//Console.WriteLine("login - > settarget create l2live " +  i );
+						L2Live target = Client.Players.FindByName(secondClient.Name);
+						
+						if (!(secondClient.Me.BuffEndtime(982) > 360000)
+						    && Enabled
+						    && secondClient.IsLoggedIn)	{
+							Console.WriteLine("client have no buf " + target.Name );
+							//Client.SetTarget(target);
+							Client.PartyInvite(secondClient.Name, LootTypes.FinderKeepers);
+							Client.UseSkill(982);
+							Wait(300);
+						}
+						Console.WriteLine("client must have buf " +  target.Name );
+						
+						
+						while (!(secondClient.Me.BuffEndtime(982) > 360000)
+						       && Enabled
+						       && secondClient.IsLoggedIn)	{
+							Console.WriteLine("fail " +  target.Name );
+							Wait(3000);
+							
+						}
+						if (secondClient.IsLoggedIn && Enabled){
+							Console.WriteLine("do restart " +  target.Name + " " + i );
+							secondClient.Restart();
+						}
+					}
+					
+				}
+				FlagDuble = true;
+				Wait(1000);
+				if(secondClient.State == ClientStates.CharacterSelect){
+					secondClient.GotoLogin();
+					while (secondClient.State != ClientStates.Login && Enabled){
+						Console.WriteLine("waiting to login from second for");
+						Wait(1000);
+					}
+				} else Enabled = false;
+				
+			}
+			Enabled = false;
+		}
+		else {
+			Enabled = false;
+			Console.WriteLine("client not a tank its " + Me.Class);
+		}
+		
+	}
+	void goToLab(GameClient player){
+		//проверка на город чтоб лишний раз не тпшил
+		player.BoardOpen();
+		Wait(1000);
+		player.BoardSelect(2); // Телепорт
+		player.BoardSelect(20); // Города
+		player.BoardSelect(30); // Руна
+		player.BoardSelect(32); // Gatekeeper
+		Wait(1000);
+		//Console.WriteLine("why no run?" );
+		while(player.IsLoggedIn && !(player.Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150) && Enabled)
+		{
+			player.MainWindowFocus();
+			player.MoveToLocation(42724, -47999, -822, 0, 15000);
+			Wait(300);
+			Console.WriteLine("still no run" );
+		}
+		Console.WriteLine("i'm on spot" );
+		
+	}
+	
+}

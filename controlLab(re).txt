@@ -1,0 +1,90 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+
+public class Script : ScriptBase {
+	Random rnd = new Random();
+
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true, controller);
+	}
+	
+	void controller(){
+		int time = Environment.TickCount;
+		Console.WriteLine("-------------------------");
+		Console.WriteLine("--------FarmLab v1 ------");
+		Console.WriteLine("-------------------------");
+		
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		
+		for(int i = 0; i < 7 ;i++){  //цикл перебора 1 логина
+			if (Enabled){
+				Wait(rnd.Next(5000,6000));
+				
+				//Console.WriteLine("try login " + i);
+				//исправить ожидание сделать нормальным
+				if (!Client.IsLoggedIn && Enabled){
+					Client.GameStart(i);
+				}
+				
+				while(!secondClient.IsLoggedIn && !Client.IsLoggedIn && Enabled){
+					Wait(550);
+				}
+				//Console.WriteLine("login by " + Client.Name + " " + secondClient.Name);
+				//if (!(Me.Location.DistanceTo(new Vector(42724, -47999, -800))<200))
+				//	goToLab(Client);
+				
+				while(!(Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150)&& Enabled)
+					Wait(500);
+				
+				if (!(secondClient.Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150))
+					goToLab(secondClient);
+				while (!(secondClient.Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150)&& Enabled)
+					Wait(300);
+				//while (Me.ItemCount(1467) < 5000 && Me.ItemCount(8875)<50){
+				//	Client.BoardOpen();
+				//Wait(3000);
+				//Client.BoardSelect(23); // Расходные
+				//Client.BuyItem(1467, 5000);
+				//}
+				
+				GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "FarmLabV1(re)").Enabled = true;
+				Wait(3000);
+				while (GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "FarmLabV1(re)").Enabled){
+					Wait(3000);
+					if (!secondClient.IsLoggedIn && i+1<7){
+						Wait(rnd.Next(3000,4000));
+						secondClient.GameStart(i+1);
+					}
+				}
+			}
+			
+		}
+		Console.WriteLine((Environment.TickCount - time)/60000 + " End Login");
+		Enabled = false;
+	}
+	void goToLab(GameClient player){
+		//проверка на город чтоб лишний раз не тпшил
+		player.BoardOpen();
+		Wait(3000);
+		player.BoardSelect(2); // Телепорт
+		player.BoardSelect(20); // Города
+		player.BoardSelect(30); // Руна
+		player.BoardSelect(32); // Gatekeeper
+		Wait(1000);
+		Console.WriteLine("why no run? " + player.Name );
+		while(player.IsLoggedIn && !(player.Me.Location.DistanceTo(new Vector(42724, -47999, -822))<150) && Enabled)
+		{
+			
+			player.MoveToLocation(42724, -47999, -822, 0, 15000);
+			Wait(300);
+			player.MainWindowFocus();
+			Console.WriteLine("still no run" + player.Name );
+		}
+	}
+	
+}

@@ -1,0 +1,54 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+
+public class Script : ScriptBase {
+
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true, tpOnKat);
+		
+	}
+	
+	void tpOnKat(){
+		Client.BoardOpen();
+		Wait(3000);
+		Client.BoardSelect(2); // Телепорт
+		Client.BoardSelect(28); // Катакомбы и Некрополи
+		Client.BoardSelect(27); // Catacomb of the Forbidden Path 70-80
+		Wait(10000);
+		Client.UseSkill(298);
+		Client.UseSkill(918);
+		Client.MoveToLocation(113240, 84536, -6536, 80, 15000);
+		Client.SetTarget(31119); // Gatekeeper Ziggurat
+		Client.DialogOpen();
+		Wait(1000);
+		Client.DialogSelect(0); // Телепортироваться
+		Wait(5000);
+		Client.MoveToLocation(13706, -248355, -9607, 0, 15000);
+		Client.MoveToLocation(13910, -247488, -9607, 0, 15000);
+		Client.MoveToLocation(14653, -247115, -9605, 0, 15000);
+		Client.MoveToLocation(15116, -247170, -9607, 0, 15000);
+		Client.MoveToLocation(15135, -247877, -9607, 0, 15000);
+		Client.MoveToLocation(15878, -248065, -9605, 0, 15000);
+		Client.MoveToLocation(16355, -247458, -9605, 0, 15000);
+		Client.MoveToLocation(16448, -246965, -9607, 0, 15000);
+		Client.MoveToLocation(17481, -247056, -9607, 0, 15000);
+		Client.MoveToLocation(17592, -248174, -9605, 0, 15000);
+		Client.MoveToLocation(18006, -248544, -9607, 0, 15000);
+		Client.MoveToLocation(18583, -248477, -9605, 0, 15000);
+		Client.MoveToLocation(18774, -247730, -9607, 0, 15000);
+		Client.MoveToLocation(19664, -247608, -9607, 0, 15000);
+		Client.MoveToLocation(19811, -246473, -9607, 0, 15000);
+		Client.MoveToLocation(19869, -245888, -9607, 0, 15000);
+		Client.MoveToLocation(20601, -245893, -9607, 0, 15000);
+		Client.Pve.Enabled = true;
+		GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "chekselfTir").Enabled = true;
+		Enabled = false;
+		
+	}
+
+}

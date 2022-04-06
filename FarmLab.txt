@@ -1,0 +1,159 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+using System.Windows.Forms;
+
+public class Script : ScriptBase {
+
+	int[] SkillIds = {423, 425};
+	Keys key = System.Windows.Forms.Keys.F10;
+	Keys key1 = System.Windows.Forms.Keys.F9;
+
+
+	public override void OnStart() {
+		
+		
+		//релоги и переход на нового перса
+		
+		base.OnStart();
+		EnabledChanged(true,farm);
+		CreateTimer(30000, rebuf);
+		CreateTimer(500, debuff);
+		
+		
+		
+	}
+
+	void farm()
+	{
+	int time = Environment.TickCount;
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		
+		Client.PartyInvite(secondClient.Name, LootTypes.FinderKeepers);
+		
+		Client.MainWindowFocus();
+		if(Me.DeathPenalty > 0){ //если штраф смерти больше 0
+			Client.UseItem(8599); //снять штраф смерти ранг S
+		}
+		
+		Wait(300);
+		Client.UseKey(key);
+		Wait(1000);
+		Client.SetTarget(31340); // Mathias
+		Client.DialogOpen();
+		Wait(330);
+		Client.DialogSelect(2); // Войти в Камалоку.
+		Client.DialogSelect(3); // Войти в Камалоку, Лабиринт Бездны (Уровень 83).
+		Wait(3000);
+		Client.UseSkill(918);
+		Wait(300);
+		secondClient.UseKey(key);
+		Wait(300);
+		Client.Pve.Enabled = true;
+		Wait(1000);
+		
+		while (Mobs.Any(m => !m.IsDead && m.DistanceToUser <1500) && Enabled) {
+			if (!Enabled) return;
+			Wait(500);
+		}
+		
+		Client.Pve.Enabled = false;
+		Wait(300);
+		Client.UseSkill(918);
+		GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "cel").Enabled = true;
+		
+		while (Me.Location.DistanceTo(new Vector(12183, -174869, -9981))>300 && Enabled){
+			Client.MoveToLocation(11980, -174906, -9971, 0, 15000);
+			Wait(300);
+		}
+		
+		if (secondClient.Me.BuffEndtime(337) == 0) {
+			
+			secondClient.UseSkill (337);
+		}
+		rebuf();
+		if (Me.Location.DistanceTo(new Vector(12183, -174869, -9981))<300 && Enabled){
+			Client.UseSkill(458);
+			Wait(300);
+			Client.UseSkill(420);
+			Wait(300);
+			secondClient.FUseSkillGround(Me.Location,1422);
+			Wait(300);
+			secondClient.SetTarget(25710);
+			Wait(300);
+			secondClient.UseSkill(1337);
+			Wait(300);
+			Client.SetTarget(25710);
+			Wait(1000);
+			Client.Attack();
+			Wait(3000);
+		}
+		while (Mobs.Any(m => !m.IsDead && m.DistanceToUser <1500) && Enabled){
+			Client.Attack();
+			if (secondClient.Me.CurentHP == 0){
+				Wait(1400);
+				secondClient.RestartPoint(RestartPointTypes.Town);
+			}
+			if(!secondClient.Me.IsInCombat && secondClient.IsLoggedIn && Client.PartyMembers.Count()==1){
+				Wait(14000);
+				secondClient.Restart();
+			}
+			Wait(500);
+			
+			
+		}
+		while(Drop.Any(m =>  m.Count != 0) && Enabled){
+			Client.Pickup(Drop.FirstOrDefault(m => m.DistanceToUser < 400), 1);
+		}
+		
+		
+		
+		Client.SetTarget(4314); // Teleport Device
+		Client.DialogOpen();
+		Wait(3000);
+		Client.DialogSelect(0); // Покинуть.
+		Wait(5000);
+		takebanana();
+		Wait(5000);
+		Client.Restart();
+		Console.WriteLine((Environment.TickCount - time)/1000);
+		Enabled = false;
+		
+
+		
+		
+	}
+	
+	void rebuf(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		for(int i = 0; i < 2; i++)
+		{
+			if (Me.BuffEndtime(SkillIds[i]) < 50000)
+			{Client.UseSkill(SkillIds[i]);}
+		}
+		if (Me.BuffEndtime(92256) < 50000)
+			Client.UseItem(33513);
+		if (Me.BuffEndtime(222) == 0)        //self fist
+			Client.UseSkill (222);
+	}
+	
+	
+	
+	
+	
+	
+	void debuff(){
+		if(Me.BuffEndtime(4047) !=0 ) Client.UseSkill(461);
+	}
+	void takebanana(){
+		Client.BoardOpen();
+		Wait(500);
+		Client.BoardSelect("Задания"); // Задания
+		Wait(100);
+		Client.BoardSelect("Награда"); // Награда
+		Wait(100);
+	}
+}

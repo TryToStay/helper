@@ -1,0 +1,159 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+
+public class Script : ScriptBase {
+
+
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true, controller);
+	}
+	
+	
+	void controller(){
+		
+		Console.WriteLine("-----------------------");
+		Console.WriteLine("--------Buff v1--------");
+		Console.WriteLine("-----------------------");
+		
+		
+		bool Flag = true;
+		//Логин гнома
+		GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "login").Enabled = true;
+		while ((GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "login").Enabled)
+		       && Enabled){
+			//Console.WriteLine("waiting for login gnom");
+			Wait(1000); }
+		Wait(3000);
+		//Основной цикл
+		while (Enabled){
+			//цикл бафа крафтера
+			while(Flag && Enabled){
+				if (Me.Class.Id == 57)
+				{
+					GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "buffGnom").Enabled = true;
+					Flag = false;
+					Wait(1000);
+				}
+				else if (Flag) 	{
+					switchToWarsmith();
+					while(Me.Class.Id != 57 && Enabled)
+						Wait(1000);
+				}
+			}
+			while (GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "buffGnom").Enabled
+			       && Enabled){
+				Wait(3000);
+				//Console.WriteLine("waiting for buff warsmith");
+			}
+			
+			
+			//Flag =false;
+			//Wait(1000);
+			
+			Console.WriteLine("----Warsmith buff is over--");
+			Wait(300);
+			Console.WriteLine("----Warsmith buff is over--");
+			Wait(300);
+			Console.WriteLine("----Warsmith buff is over--");
+			//меняем саб на танка
+			if (Enabled)
+				switchToTank();
+			Flag = true;
+			while(Flag && Enabled){
+				if (Me.Class.Id == 5)
+				{
+					GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "buffTank").Enabled = true;
+					Flag = false;
+					Wait(1000);
+				}
+				else if (Flag) 	{
+					switchToWarsmith();
+					while(Me.Class.Id != 57 && Enabled)
+						Wait(1000);
+				}
+			}
+			while (GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "buffTank").Enabled
+			       && Enabled){
+				Wait(3000);
+				//Console.WriteLine("waiting for buff tank");
+			}
+			
+			Console.WriteLine("----tank buff is over--");
+			Wait(300);
+			Console.WriteLine("----tank buff is over--");
+			Wait(300);
+			Console.WriteLine("----tank buff is over--");
+			Wait(300);
+			Enabled = false;
+		}
+		
+		Flag = false;
+		Enabled = false;
+	}
+	void switchToWarsmith(){
+		Console.WriteLine(Me.Name + " " + Me.Class + " want to be a warsmith");
+		Client.BoardOpen();
+		Wait(3000);
+		if ((Me.Location.DistanceTo(new Vector(80435, 144511, -3528))>200 && Enabled)){
+			Client.BoardSelect(2); // Телепорт
+			Client.BoardSelect(20); // Города
+			Client.BoardSelect(41); // Orc Guild
+			Console.WriteLine("start tp orc guild giran");
+		}
+		while (Me.Location.DistanceTo(new Vector(80435, 144511, -3528))>200 && Enabled)	{
+			//Console.WriteLine("wait tp");
+			Wait(500);
+		}
+		Console.WriteLine("tp i sucsess");
+		Wait(3000);
+		Client.MainWindowFocus();
+		Wait(1000);
+		Client.MoveToLocation(80520, 144392, -3538, 80, 15000);
+		Client.SetTarget(30513); // Penatus
+		Client.DialogOpen();
+		Wait(500);
+		Client.DialogSelect(1); // Подкласс
+		Wait(500);
+		Client.DialogSelect(1); // Изменить подкласс.
+		Wait(500);
+		Client.DialogSelect(0); // Warsmith
+		Wait(1000);
+		Console.WriteLine(Me.Name + " became a  " + Me.Class);
+	}
+	void switchToTank(){
+		Console.WriteLine(Me.Name + " " + Me.Class + " want to be a tank");
+		Client.BoardOpen();
+		Wait(3000);
+		if ((Me.Location.DistanceTo(new Vector(80435, 144511, -3528))>200 && Enabled)){
+			Client.BoardSelect(2); // Телепорт
+			Client.BoardSelect(20); // Города
+			Client.BoardSelect(41); // Orc Guild
+			Console.WriteLine("start tp orc guild giran");
+		}
+		while (Me.Location.DistanceTo(new Vector(80435, 144511, -3528))>200 && Enabled)	{
+			//Console.WriteLine("wait tp");
+			Wait(500);
+		}
+		Console.WriteLine("tp i sucsess");
+		Wait(3000);
+		Client.MainWindowFocus();
+		Wait(1000);
+		Client.MoveToLocation(80520, 144392, -3538, 80, 15000);
+		Client.SetTarget(30513); // Penatus
+		Client.DialogOpen();
+		Wait(500);
+		Client.DialogSelect(1); // Подкласс
+		Wait(500);
+		Client.DialogSelect(1); // Изменить подкласс.
+		Wait(500);
+		Client.DialogSelect(0); // Paladin
+		Console.WriteLine(Me.Name + " became a  " + Me.Class);
+	}
+
+
+}

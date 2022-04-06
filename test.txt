@@ -1,0 +1,448 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+using System.Windows.Forms;           //нажатие клавиш
+using NewWidget.Core.Network;         //сетевые пакеты
+
+public class Script : ScriptBase {
+	
+	Keys key = System.Windows.Forms.Keys.Space;
+	Keys keyBuff = System.Windows.Forms.Keys.F10;
+	string[] logins = new[] {
+		"18.art44555",
+		"18.art44556",
+		"18.art44557",
+		"18.art44558",
+	};
+	int DELAY; //задержка ожидания в циклах
+	Random rnd = new Random();
+	
+
+
+	public override void OnStart() {
+		base.OnStart();
+		
+		BindEnabled(key,false,false,false);
+		EnabledChanged(true, test);
+		//EnabledChanged(PartyMembers.Count() <1, inv);
+		//CreateTimer(5000,hp);
+		//NewDialog(d => d.Text.Contains("Откатить Инстанс"), d =>Client.DialogAnswer(true));
+		
+		
+	}
+	//main test procedur
+	void test(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(s => s != Client);
+		//rec(Client, secondClient);
+		//takebanan(Client);
+		//skillReturnFalse();
+		//Client.MoveToLocation(72313, -124519, -3285, 0, 15000);
+		//itemcount(Client);
+		//Client.UseSkill(423); //dark form
+		//Client.Attack();
+		//chekbanan();
+		//chekHP();
+		//reEnter();
+		//Wait(rnd.Next(700,1000));
+		//Client.Restart();
+		//listFunc();
+		//post();
+		//buff(Client);
+		//eqq();
+		//pickWindow();
+		//goToLab(secondClient);
+		loc();
+		Wait(rnd.Next(300,400));
+		//Client.Restart();
+		Enabled = false;
+	}
+	
+	void loc(){
+	Console.WriteLine(Me.Location);
+	}
+	void goToLab(GameClient player){
+	//player.Npcs
+		player.SetTarget(Npcs.OrderBy(n => n.DistanceToUser).FirstOrDefault( n => n.Id == 31340));// Mathias
+		Wait(rnd.Next(200,300));
+		player.DialogOpen();
+		Wait(rnd.Next(100,200));
+		player.DialogSelect(2); // Войти в Камалоку.
+		Wait(rnd.Next(100,200));
+		player.DialogSelect(3); // Войти в Камалоку, Лабиринт Бездны (Уровень 83).
+		Wait(rnd.Next(100,200));
+		
+	}
+	
+	void eqq(){ /// НЕ РАБОТАЕТ
+	//Me.Equipment.Weapon.
+	//if (Me.Equipment.Contains(10459)){   //id icar Fist
+		Console.WriteLine(Me.Equipment ); //howk ------------------ доработать условие если когти
+	//	}else{Console.WriteLine("no fist");}
+	}
+	
+	void buff(GameClient player ){  //// время в милисекундах 60 000 - 1 минута
+		if (player.Me.Class.Id == 114) // если soultaker - 95 ,114 - tir 
+		{
+			player.UseSkill(918);       				 //max charg
+			if (player.Me.BuffEndtime(222) == 0)        // fury fist togl
+				player.UseSkill (222);
+			Wait(rnd.Next(100,200));
+			if (player.Me.BuffEndtime(298) < 120000) player.UseSkill (298); // rabbit
+			if (player.Me.BuffEndtime(423) < 120000) player.UseSkill (423); //dark form
+			if (player.Me.BuffEndtime(1323) < 120000 || player.Me.CurentHP < 90)  player.UseKey(key);     //buff noble
+			
+			if (player.Me.BuffEndtime(92256) < 120000 && player.Me.ItemCount(33513) > 0) //banan
+				player.UseItem(33513);
+		}else{
+			if (player.Me.BuffEndtime(1323) < 60000*58 || player.Me.CurentHP < 90) { player.UseKey(keyBuff); Console.WriteLine("necr buff ");}     //buff noble
+			if (player.Me.BuffEndtime(92256) < 120000 && player.Me.ItemCount(33513) > 0) //banan
+				player.UseItem(33513);
+		}
+	}
+	
+	
+	void pickWindow(){
+	var secondClient =L2Helper.Clients.ElementAt(2);
+ 	Console.WriteLine(secondClient.Name);
+ 	secondClient.Restart();
+	}
+	
+	
+	
+	//отправка почты
+	void post(){
+		var ids = new[] {6578, 6577,  10217, 10216, 15766, 15768, 10215}; // id предметов armor wip serga МАГмеч нож  физмеч 
+		var items = CommonInventory
+			.Where(i => ids.Contains(i.Id))
+			.Select(i => new PostItem(i.ObjectId, i.Count));
+		Client.SendPost("iamkam1","Без темы", "", items);
+	}
+	
+	
+	void listFunc(){
+		//Console.WriteLine(Client.CommunityBoardActions.
+		}
+		
+		
+	// работа с комьюнити боард + положительный ответ на вопрос
+	void reEnter(){
+		Client.BoardOpen();
+		Wait(rnd.Next(200,300));
+		Client.BoardSelect(5); // Сервисы
+		Wait(rnd.Next(200,300));
+		Client.BoardSelect(16); // Подробнее
+		Wait(rnd.Next(200,300));
+		Client.BoardSelect(18); // Купить
+		Wait(rnd.Next(200,300));
+		Client.BoardSelect(18); // Откатить
+		Wait(rnd.Next(4000,5000));
+		Client.DialogAnswer(true);
+		
+	}
+	
+	void chekHP(){
+		
+		while (Mobs.FirstOrDefault(n => n.Id == 22832).HP > 50
+		       && Enabled){
+			Wait(200);
+			
+		}
+		Console.WriteLine("у босса < 05");
+		
+	}
+	void chekbanan(){
+		if (Client.CommunityBoardActions.FirstOrDefault(t => t.Text == "Награда") != null){
+			Console.WriteLine("Есть");
+		}else
+			Console.WriteLine("Нет");
+	}
+	void itemcount(GameClient player){
+		if (player.Me.BuffEndtime(92256) > 50000 && player.Me.ItemCount(33513) > 0) //banan
+			Console.WriteLine("Удалось");
+	}
+	void skillReturnFalse(){
+		while (!Client.UseSkill(994, true)) {
+			Console.WriteLine("ne использовал");
+			Wait(100);
+		}
+		
+		Console.WriteLine("использовал");
+	}
+	void upto23(){
+		
+	}
+	void item(){
+		Console.WriteLine(Client.Me.ItemCount(33513));
+	}
+	void charg(){
+		Console.WriteLine(Client.Me.Charges.ToString());
+	}
+	void takebanan(GameClient player){
+		//Client.Me.ItemCount
+		// Console.WriteLine(Client.Me);
+		long count = player.Me.ItemCount(33513);
+		long endcount = count;
+		player.MainWindowFocus();
+		Wait(rnd.Next(300,400));
+		while(!(endcount-count==1) && Enabled && (DELAY < 15000)){
+			//if (Me.BuffEndtime(92256) < 50000)
+			//Client.UseItem(33513);
+			
+			player.BoardOpen();
+			Wait(rnd.Next(300,400));
+			player.BoardSelect("Задания"); // Задания
+			Wait(rnd.Next(300,400));
+			player.BoardSelect(15); // Награда
+			int del = rnd.Next(1000,1100);
+			DELAY = DELAY + del;
+			Wait(del);
+			endcount = player.Me.ItemCount(33513);
+		}
+		if (DELAY>15000){
+			Console.WriteLine(player.Me.Name + " завис " + DELAY);
+		}
+		Console.WriteLine(player.Me.Name + "  не зависс " + DELAY + " "+ count + " " + endcount );
+	}
+	//recomendation 20 times
+	void rec(GameClient player1, GameClient player2){
+		
+		player1.FSetTarget(Players.FindByName(player2.Name));
+		Wait(rnd.Next(300,400));
+		//Console.WriteLine(player1.Me.TargetObjectId.ToString());
+		//Console.WriteLine(player2.Me.ObjectId.ToString());
+		//Console.WriteLine(player1.Me.TargetObjectId.Equals(player2.Me.ObjectId) );
+		
+		if (player1.Me.TargetObjectId.Equals(player2.Me.ObjectId))
+			for(int i = 0; i < 20; i++){
+			player1.UseKey(key);
+			Console.WriteLine(i);
+			Wait(rnd.Next(300,400));
+			Console.WriteLine(rnd.ToString());
+		}
+		
+	}
+
+
+
+	//recomendation C2=RequestEvaluate:d(TargetID)
+	void recPck(){
+		var pck = new Packet(0xC2);
+		pck.GetWriter().WriteD(Me.TargetObjectId);
+		Client.SendToServer(pck);
+		Wait(5000);
+		Enabled = false;
+		
+	}
+	//два окна берут друг друга в таргет
+	void settarget(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(s => s != Client);
+		Client.FSetTarget(Players.FindByName(secondClient.Name));
+		Wait(300);
+		//secondClient.FSetTarget(Players.FindByName(Client.Name));
+		secondClient.SetTarget(Me);
+	}
+
+	//Раса игрока (0 - human, 1: elf, 2: dark elf, 3: orc, 4: dwarf, 5: kamael)
+	//Пол игрока(0: мужской, 1: женский)
+	//classid HumanMystic 10
+	//0C=CharacterCreate:s(Name)d(Race)d(Sex)d(ClassID:Get.ClassID)d(INT)d(STR)d(CON)d(MEN)d(DEX)d(WIT)d(HairStyle)d(HairColor)d(Face)
+	void char_c(){
+		var  p = new Packet(0x0C);
+		
+		string name = "iamkam4";
+		int race = 3;		//orc
+		int sex = 0;		//male
+		int classid = 44;	//eorcfighter
+		int stat = 1;
+		int hairstyle = 1;
+		int haircolor = 1;
+		int face = 1;
+		
+		
+		p.GetWriter()
+			.WriteS(name)
+			.WriteD(race)
+			.WriteD(sex)
+			.WriteD(classid)
+			.WriteD(stat).WriteD(stat).WriteD(stat).WriteD(stat).WriteD(stat).WriteD(stat)
+			.WriteD(hairstyle)
+			.WriteD(haircolor)
+			.WriteD(face);
+		Console.WriteLine(p.ToString());
+		Client.SendToServer(p);
+	}
+	void trade (){
+		var pck = new Packet(0x1A);
+		pck.GetWriter().WriteD(Me.Target.ObjectId);
+		Client.SendToServer(pck);
+		Wait(5000);
+		//var pck2 = new Packet(0x1B);
+		//pck2.GetWriter()
+		//	.WriteD(Me.Target.ObjectId)  //trade id
+		//	.WriteD(6577)  //итем ид
+		//	.WriteQ(1);  //кол-во
+		//Client.SendToServer(pck2);
+		//Console.WriteLine(pck2.ToString());
+		Enabled = false;
+		Wait(10000);
+
+		var pck1 = new Packet(0x1C);
+		pck1.GetWriter().WriteD(1);//согласие
+		Client.SendToServer(pck1);
+
+	}
+
+	void distto(){
+		Console.WriteLine("start tp");
+		while (Me.Location.DistanceTo(new Vector(80435, 144511, -3528))>200
+		       && Enabled) {
+			Console.WriteLine("wait tp");Wait(500);
+		}
+		Console.WriteLine("tp i sucsess");
+	}
+
+	void stringtest(){
+		Console.WriteLine ("start " + logins.Length);
+		for(int i = 0; i < logins.Length ;i++){
+			Console.WriteLine ("for " + i +" "+ logins[i]);
+		}
+	}
+	void switchToWarsmith(){
+		
+		Console.WriteLine(Me.Name + " " + Me.Class + " want to be a warsmith");
+		Client.BoardOpen();
+		Wait(1000);
+		Client.BoardSelect(2); // Телепорт
+		Client.BoardSelect(20); // Города
+		Client.BoardSelect(41); // Orc Guild
+		Console.WriteLine("start tp");
+		//while (Me.DistanceTo(new Vector(80435, 144511, -3528))<150) {Console.WriteLine("wait tp");Wait(500);}
+		Console.WriteLine("tp i sucsess");
+		Client.MoveToLocation(80520, 144392, -3538, 80, 15000);
+		Client.SetTarget(30513); // Penatus
+		Client.DialogOpen();
+		Wait(1000);
+		Client.DialogSelect(1); // Подкласс
+		Client.DialogSelect(1); // Изменить подкласс.
+		Client.DialogSelect(0); // Warsmith
+		Console.WriteLine(Me.Name + " became a  " + Me.Class);
+	}
+	void loginwindow(){
+		//var secondClient = L2Helper.Clients.FirstOrDefault(s => s != Client);
+		//secondClient.Login("18.art44555","14521452", 0);
+		//GameClient.StartNew("D:/Lineage2/Scryde/L2_lite.exe","18.art44555","14521452", 0);
+		
+		//Console.WriteLine((Me.DistanceToUser("Kul29"));
+		//if (Me.DistanceToUser("Kul29")
+		//while (!Client.Players.FindByName("Kul29").IsMyWindow())
+		//{
+		while (Enabled){
+			L2Live player = Players.FirstOrDefault(p => p.Name.ToString() == "kyl29" && p.DistanceToUser < 150);
+			//Players.Where(p => p.Name.ToString() == "kyl29" && p.DistanceToUser < 150) ;
+			Wait(1000);
+			if (player == null) Console.WriteLine("нету");
+			else Console.WriteLine("получилось" + player.Location );
+		}
+		
+		
+	}
+
+	void login(){
+		
+		
+		Console.WriteLine(Client.State + " 22 "+ Client.Process);
+		//Client.State = ClientStates.Login;
+		//ClientStates = 0;
+		//GameClient.StartNew("D:/Lineage2/Scryde/L2_lite.exe","18.art44555","14521452", -1);
+		
+
+		//Client.Login("18.art44557","14521452",0);
+	}
+
+	void mainwin(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(s => s != Client);
+		secondClient.MainWindowFocus();
+	}
+	void chekid(){
+		Console.Clear();
+		Console.WriteLine(Me.Class.Id);
+		Enabled = false;
+	}
+	void changeC(){
+		//if (Me.Class.Id == 57)
+		//switchToTank();
+		//else switchToWarsmith();
+		Client.MoveToLocation(43611, -48892, -803, 80, 15000);
+		Client.SetTarget(31314); // Donal
+		Client.DialogOpen();
+		Wait(1000);
+		Client.DialogSelect(1); // Подкласс
+		Client.DialogSelect(1); // Изменить подкласс.
+		Client.DialogSelect(0); // Paladin
+	}
+
+
+
+	void target (){
+		var secondClient = L2Helper.Clients.FirstOrDefault(s => s != Client);
+		L2Live target = Players.FindByName(secondClient.Name);
+		Client.FSetTarget(target);
+	}
+
+	void buyItem(){
+		while (Me.ItemCount(1467) < 5000 || Me.ItemCount(8875)<50){
+			Client.BoardOpen();
+			Wait(3000);
+			Client.BoardSelect(23); // Расходные
+			Wait(1000);
+			Client.BuyItem(1467, 5000);
+			
+		}
+		Enabled = false;
+	}
+
+	void at(){
+		while(!Mobs.FirstOrDefault(m => m.IsAttackedByMe).IsDead)	{
+			Client.Attack();
+		}
+		Console.WriteLine("Действие");
+	}
+
+	void town(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		while (secondClient.Me.CurentHP == 0)
+			
+		{
+			secondClient.RestartPoint(RestartPointTypes.Town);
+		}
+	}
+	void town2(){
+		Client.RestartPoint(RestartPointTypes.Town);
+	}
+
+	void hpqe(){
+		
+		if (!Mobs.FirstOrDefault(m => m.IsAttackedByMe).IsDead){
+			Console.WriteLine("мертв");
+		}
+		
+		
+		
+	}
+	void action(){
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		secondClient.UseSkill(423);
+	}
+	void inv(){
+		Console.WriteLine(PartyMembers.Count()+"начало");
+		GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "partyInvite").Enabled = true;
+		Wait(5000);
+		Console.WriteLine(PartyMembers.Count()+"Конец");
+	}
+}
+
+
+

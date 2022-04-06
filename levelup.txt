@@ -1,0 +1,159 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+using System.Windows.Forms;
+
+public class Script : ScriptBase {
+	int xGracia = -184168;
+	int yGracia = 242776;
+	int zGracia = 1568;
+	
+	int xDion = 24571;
+	int yDion = 142516;
+	int zDion = -3124;
+	
+	int xDion1 = 22728;
+	int yDion1 = 145288;
+	int zDion1 = -3344;
+	
+	int REDLINE =15000; //waiting foe 15 sec for reaction
+	int time;
+	int DELAY; //задержка ожидания в циклах
+	Random rnd = new Random();
+	Keys key = System.Windows.Forms.Keys.F11;
+	
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true, lvlUp);
+	}
+	
+	void lvlUp(){
+		
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		
+		
+		//+invite second window +
+		Client.PartyInvite(secondClient.Name, LootTypes.FinderKeepers);
+		
+		//!!!!!!!!!!!!chek party!!!!!!!!!!!!!
+		
+		takebanan(Client);
+		takebanan(secondClient);
+		
+		//goToGracia(Client);
+		//goToGracia(secondClient);
+		
+		goToDion(Client);
+		goToDion(secondClient);
+		
+		rec(Client,secondClient);
+		rec(secondClient,Client);
+		
+		upto23(Client,secondClient);
+		
+		
+		Enabled = false;
+	}
+	//+chek location+
+	bool chekloc(int x, int y, int z, GameClient player){
+		if (player.Me.Location.DistanceTo(new Vector( x, y, z))<150 && Enabled){
+			return true;
+		}else {
+			Console.WriteLine(player.Me.Name + " " + player.Me.Class + " location not right" );
+			return false;
+		}
+	}
+	void goToGracia(GameClient player){
+		
+		time = 0;
+		while (Enabled && !chekloc(xGracia, yGracia, zGracia, player) && time < REDLINE){
+			player.MainWindowFocus();
+			Wait(rnd.Next(300,400));
+			player.BoardOpen();
+			Wait(rnd.Next(100,200));
+			player.BoardSelect(2); // Телепорт
+			Wait(rnd.Next(100,200));
+			player.BoardSelect(31); // Прокачка персонажа
+			Wait(rnd.Next(100,200));
+			player.BoardSelect(23); // 20-35 (Поляны Диона)
+			
+			DELAY = rnd.Next(2000, 3000);
+			Wait(DELAY);
+			time = time + DELAY;
+			
+		}
+		if (time > REDLINE || Enabled == false){
+			Console.WriteLine("fail go to gracia try do it again time = " + time);
+			Enabled = false;
+		}
+		
+	}
+	
+	
+	void takebanan(GameClient player){
+		
+		int count = (int)player.Me.ItemCount(33513);
+		int endcount = count;
+		player.MainWindowFocus();
+		Wait(rnd.Next(300,400));
+		DELAY = 0;
+		while(!(endcount-count==1) && Enabled && (DELAY < 15000)){
+			
+			player.BoardOpen();
+			Wait(rnd.Next(300,400));
+			player.BoardSelect("Задания"); // Задания
+			Wait(rnd.Next(300,400));
+			player.BoardSelect(15); // Награда
+			int del = rnd.Next(1000,1100);
+			DELAY = DELAY + del;
+			Wait(del);
+			endcount = (int)player.Me.ItemCount(33513);
+		}
+		if (DELAY>15000){
+			Console.WriteLine(player.Me.Name + " завис " + DELAY);
+		}
+	}
+	void rec(GameClient player1, GameClient player2){
+		//chek rec
+		player1.MainWindowFocus();
+		player1.SetTarget(player1.Players.FindByName(player2.Name));
+		Wait(rnd.Next(300,400));
+		if (player1.Me.TargetObjectId.Equals(player2.Me.ObjectId)){
+			for(int i = 0; i < 20; i++){
+				player1.UseKey(key);
+				Wait(rnd.Next(300,400));
+			}
+		}
+		
+	}
+	void goToDion(GameClient player){
+		time = 0;
+		while (Enabled && !chekloc(xDion1, yDion1, zDion1, player) && time < REDLINE){
+			player.MainWindowFocus();
+			Wait(rnd.Next(300,400));
+			player.BoardOpen();
+			Wait(rnd.Next(100,200));
+			player.BoardSelect(2); // Телепорт
+			Wait(rnd.Next(100,200));
+			player.BoardSelect(31); // Прокачка персонажа
+			Wait(rnd.Next(100,200));
+			player.BoardSelect(23); // 20-35 (Поляны Диона)
+			
+			DELAY = rnd.Next(2000, 3000);
+			Wait(DELAY);
+			time = time + DELAY;
+			
+		}
+		if (time > REDLINE || Enabled == false){
+			Console.WriteLine("fail go to gracia try do it again time = " + time);
+			Enabled = false;
+		}
+	}
+	void upto23(GameClient player1, GameClient player2){
+		
+	}
+}
+

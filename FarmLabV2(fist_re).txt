@@ -1,0 +1,272 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+using System.Windows.Forms;
+
+public class Script : ScriptBase {
+	Random rnd = new Random();
+	Keys key = System.Windows.Forms.Keys.F10; // f10 buff
+	int Xdelt = 50;
+	int COUNT;
+
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true,farm);
+		CreateTimer(500, debuff);
+	}
+	void farm(){
+		
+		//!!!!!!!!!!!!!!!!! chek na login 2 okna
+		//chek quest
+		
+		int time = Environment.TickCount;
+		var secondClient = L2Helper.Clients.FirstOrDefault(c => c != Client);
+		Client.MainWindowFocus();//focus window
+		Client.PartyInvite(secondClient.Name, LootTypes.FinderKeepers);//party
+		
+		Wait(rnd.Next(100,200));
+		dethPenalty(Client);
+		Wait(rnd.Next(100,200));
+		dethPenalty(secondClient);
+		Wait(rnd.Next(100,200));
+		
+		
+		Client.SetTarget(Npcs.OrderBy(n => n.DistanceToUser).FirstOrDefault( n => n.Id == 31340));// Mathias
+		Wait(rnd.Next(200,300));
+		Client.DialogOpen();
+		Wait(rnd.Next(100,200));
+		Client.DialogSelect(2); // Войти в Камалоку.
+		Wait(rnd.Next(100,200));
+		Client.DialogSelect(3); // Войти в Камалоку, Лабиринт Бездны (Уровень 83).
+		Wait(rnd.Next(100,200));
+		
+		while (!(inLab(Client)) && !(inLab(secondClient)) && Enabled){
+			Wait(rnd.Next(100,200));
+		}
+		
+		
+		buff(Client, secondClient);
+		
+		Wait(rnd.Next(300,400));
+		Client.UseItem(10450);
+		Wait(rnd.Next(100,200));
+		
+		Client.SetTarget(Mobs.OrderByDescending(n => n.DistanceToUser).FirstOrDefault( n => n.Id == 25706));
+		Client.UseSkill(994);
+		COUNT = 0;
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! не всегда работает уменьшил ожидание на 10 не проверял
+		while (!(Client.UseSkill(994)) && Enabled && COUNT < 20){
+			Wait(10);
+			//Console.WriteLine("not");
+			COUNT = COUNT +1;
+		}
+		Client.StopCasting();
+		Wait(rnd.Next(100,200));
+		Client.CancelTarget();
+		Wait(rnd.Next(100,200));
+		Client.StopCasting();
+		Wait(rnd.Next(100,200));
+		Client.CancelTarget();
+		
+		Client.MoveToLocation(20043, -174894, -10926, 0, 15000);
+		Wait(rnd.Next(1000,2000));
+		Client.Pve.Enabled= true;
+		Client.UseSkill(425);  //howk
+		
+		while (Mobs.Any(m => !m.IsDead && m.DistanceToUser <1000) && Enabled) {
+			if (!Enabled) return;
+			Wait(100);
+			//Console.WriteLine("not");
+		}
+		Client.Pve.Enabled= false;
+		if (Client.Me.ItemCount(10450) != 0 ){
+			Client.UseItem(10459);
+			Client.UseItem(15846);
+		}
+		Client.UseSkill (298);//rabbit
+		
+		Console.Write((Environment.TickCount - time)/1000 + " end 1 room  ||" );
+		COUNT = 0;
+		Client.SetTarget(Mobs.OrderByDescending(n => n.DistanceToUser).FirstOrDefault( n => n.Id == 25708));
+		while (!Client.UseSkill(995) && Enabled && COUNT < 20){
+			Wait(10);
+			//Console.WriteLine("not");
+			COUNT = COUNT +1;
+		}
+		
+		Wait(rnd.Next(100,200));
+		Client.StopCasting();
+		Client.CancelTarget();
+		
+		Client.MoveToLocation(16999, -174865, -10532, 0, 15000);
+		
+		Client.SetTarget (25709);
+		COUNT = 0;
+		while (!Client.UseSkill(994) && Enabled && COUNT < 20){
+			Wait(10);
+			//Console.WriteLine("not " + COUNT);
+			COUNT = COUNT +1;
+		}
+		Client.CancelTarget();
+		Wait(rnd.Next(100,200));
+		Client.StopCasting();
+		
+		Client.MoveToLocation(14231, -174879, -10265);
+		if (Client.Me.Charges < 8){
+			Client.UseSkill(918);         //max charg
+		}
+		while ( !(Me.CurentHP < Me.MaxHP *0.3)){
+			Wait(100);
+		}
+		Client.FUseSkill(443);                  //celestial
+		
+		Client.MoveToLocation(11980, -174906, -9971, 0, 15000);
+		
+		while (!(secondClient.Me.Location.DistanceTo(new Vector(11980, -174906, -9971))<300) && Enabled){
+			Wait(100);
+		}
+		
+		Client.SetTarget(25710);
+		secondClient.SetTarget(25710);
+		Console.Write(" " + (Environment.TickCount - time)/1000 + " у босса  ||  ");
+		Client.UseSkill(425);  //howk
+		Wait(rnd.Next(100,200));
+		Client.UseSkill(423); //dark form
+		Wait(rnd.Next(100,200));
+		Client.UseSkill(458); //kupol tira
+		Wait(rnd.Next(100,200));
+		
+		//secondClient.MainWindowFocus();
+		secondClient.FUseSkillGround(Client.Me.Location,1422);
+		
+		Client.FUseSkill(420); //zil
+		Client.Attack();
+		
+		secondClient.UseSkill(1495);
+		secondClient.UseSkill(1532);
+		secondClient.UseSkill(1337);
+		secondClient.MoveToLocation(12059, -175345, -9988, 0, 15000);
+		secondClient.MoveToLocation(11646, -175449, -9976, 0, 15000);
+		
+		Client.MainWindowFocus();
+		
+		while (Mobs.FirstOrDefault( n => n.Id == 25710).HP > 70 && Enabled){
+			Wait(200);
+			
+		}
+		//Console.WriteLine("у босса < 05");
+		banan(secondClient);
+		
+		while (Enabled && secondClient.State.ToString().Equals("Gaming")){
+			if (!(secondClient.Me.IsInCombat)) {
+				//Console.WriteLine("2 окно в игре и оно не в бою");
+				secondClient.Restart();
+				Wait(5000);
+			}
+			else {
+				//Console.WriteLine("  в бою");
+				secondClient.MoveToLocation(11646 + Xdelt, -175449, -9976, 0, 15000);
+				Wait(1000);
+			}
+		}
+		///////проверка релога второго окна
+		//Console.WriteLine("2 окно релогнуло");
+		while (Mobs.Any(m => !m.IsDead && m.DistanceToUser <1000) && Enabled){
+			if (!Enabled) return;
+			Wait(100);
+		}
+		
+		while(Drop.Any(m =>  m.Count != 0) && Enabled){
+			Client.Pickup(Drop.FirstOrDefault(m => m.DistanceToUser < 400), 1);
+		}
+		
+		Wait(rnd.Next(200,300));
+		Wait(rnd.Next(100,200));
+		Client.UseSkill(423); //dark form
+		Wait(rnd.Next(100,200));
+		Client.UseSkill (298);//rabbit
+		reEnter();
+		
+		
+		while (Me.IsInCombat && Enabled) {
+			Wait(1000);
+		}
+		
+		
+		Client.Restart();
+		
+		//Client.UseSkill(420); //zil
+		
+		
+		Console.WriteLine((Environment.TickCount - time)/1000 + " End " + Client.Name);
+		Enabled = false;
+
+		
+	}
+	void reEnter(){
+		Client.BoardOpen();
+		Wait(rnd.Next(400,500));
+		Client.BoardSelect(5); // Сервисы
+		Wait(rnd.Next(400,500));
+		Client.BoardSelect(16); // Подробнее
+		Wait(rnd.Next(400,500));
+		Client.BoardSelect(18); // Купить
+		Wait(rnd.Next(400,500));
+		Client.BoardSelect(18); // Откатить
+		Wait(rnd.Next(4000,5000));
+		NewDialog(d => d.Text.Contains("Откат"), d => Client.DialogAnswer(true));
+	}
+	void banan(GameClient player){
+		player.BoardOpen();
+		Wait(rnd.Next(400,500));
+		player.BoardSelect("Задания"); // Задания
+		Wait(rnd.Next(400,500));
+		while (player.CommunityBoardActions.FirstOrDefault(t => t.Text == "Награда") != null && Enabled){
+			player.BoardSelect("Награда"); // Награда
+			Wait(rnd.Next(1000,1200));
+		}
+		
+	}
+	void buff(GameClient player,GameClient player2){
+		player.UseSkill(918);
+		if (player.Me.BuffEndtime(222) == 0)        //self fist
+			player.UseSkill (222);
+		Wait(rnd.Next(100,200));
+		if (player.Me.BuffEndtime(298) < 120000)
+			player.UseSkill (298);
+		Wait(rnd.Next(100,200));
+		if (player.Me.BuffEndtime(423) < 120000)
+			player.UseSkill (423);
+		
+		Wait(rnd.Next(100,200));
+		if (player.Me.BuffEndtime(92256) < 120000 && player.Me.ItemCount(33513) > 0) //banan
+			player.UseItem(33513);
+		Wait(rnd.Next(100,200));
+		if (player2.Me.BuffEndtime(92256) < 120000 && player2.Me.ItemCount(33513) > 0)//banan 2 window
+			player2.UseItem(33513);
+		
+		Wait(rnd.Next(100,200));
+		player.UseKey(key);
+		Wait(rnd.Next(100,200));
+		player2.UseKey(key);
+		Wait(rnd.Next(100,200));
+		
+	}
+
+	bool inLab(GameClient player){
+		if (player.Me.Location.DistanceTo(new Vector(21993, -174862, -10937))<150 && Enabled) return true;
+		else return false;
+	}
+
+	void dethPenalty(GameClient player){
+		if(player.Me.DeathPenalty > 0) {player.UseItem(8599);}//снять штраф смерти ранг S
+		
+	}
+	void debuff(){
+		if(Me.BuffEndtime(4047) !=0 ) Client.UseSkill(461);
+	}
+
+}

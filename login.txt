@@ -1,0 +1,54 @@
+using System;
+using System.Linq;
+using System.Collections.Generic;
+using NewWidget.Core;
+using NewWidget.Core.Native;
+using NewWidget.Core.Scripting;
+
+public class Script : ScriptBase {
+
+	public override void OnStart() {
+		base.OnStart();
+		EnabledChanged(true,login);
+	}
+	void login(){
+		while (Enabled && !(Me.Name.ToString() == "BankOfRussia")){
+			switch (Client.State.ToString()){
+					case "Login":{
+						Client.Login("go.bankof","132435q",0);
+						Console.WriteLine(" is login " );
+						while (Enabled
+						       && !(Me.Name.ToString() == "BankOfRussia")
+						      )
+							Wait(1000);
+						Console.WriteLine(Client.Name + " is log in ");
+						break;
+					}
+					case "Gaming":{
+						Console.WriteLine("i`m in gaming");
+						Client.Restart();
+						while (!Client.State.ToString().Equals("CharacterSelect"))
+							Wait(1000);
+						Console.WriteLine("i`m in Select char");
+						break;
+					}
+					case "CharacterSelect":{
+						Client.GotoLogin();
+						while (!Client.State.ToString().Equals("Login"))
+							Wait(1000);
+						Console.WriteLine("i`m in login");
+						break;
+					}
+					default: {
+						Console.WriteLine("login is faild " + Client.State);
+						GetClient(Client.Name).Scripts.FirstOrDefault(s => s.Name == "controlRebufByGnom").Enabled =false;
+						Enabled = false;
+						break;
+					}
+			}
+		}
+		Console.WriteLine("I'm BankofRussia ceep calm");
+		Enabled = false;
+	}
+	
+}
